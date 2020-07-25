@@ -1,6 +1,7 @@
 const timeout = require('./timeout')
 
-const playMovie = async (movieName, entityID = 'plex_shield') => {
+const playMovie = async (movieName, hass, entityID = 'plex_shield') => {
+
   // Turn on the TV
   let remoteState = await hass.states.get('remote', 'lounge')
   if (remoteState.state === 'off' || remoteState.attributes.current_activity !== 'Watch TV') {
@@ -9,9 +10,8 @@ const playMovie = async (movieName, entityID = 'plex_shield') => {
       entity_id: remoteState.entity_id,
       activity: 'Watch TV'
     })
+    await timeout(5000)
   }
-
-  await timeout(5000)
 
   // Launch Plex.
   hass.states.get('media_player', 'lounge_tv').then((state) => {
@@ -22,9 +22,8 @@ const playMovie = async (movieName, entityID = 'plex_shield') => {
         source: 'com.plexapp.android'
       })
     }
+    await timeout(3000)
   })
-
-  await timeout(3000)
 
   // Play the movie.
   const libraryName = 'Movies'
