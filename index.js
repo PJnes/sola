@@ -6,14 +6,7 @@ const fs = require('fs');
 const HomeAssistant  = require('homeassistant');
 const { NFC } = require('nfc-pcsc');
 
-const movies = JSON.parse(fs.readFileSync('movies.json'));
-
-// Allow directly playing movie from CLI
-let listenForNFC = true
-const [ argAction, argValue ] = process.argv.slice(2)
-if ((argAction === 'name' || argAction === 'id' ) && argValue !== undefined ) {
-  listenForNFC = false
-}
+const content = JSON.parse(fs.readFileSync('contentId.json'));
 
 const hass = new HomeAssistant({
   host: process.env.HASS_HOST,
@@ -23,7 +16,7 @@ const hass = new HomeAssistant({
 
 const timeout = (ms) => (new Promise(resolve => setTimeout(resolve, ms)))
 
-const playMovie = async (movieName, entityID = 'plex_shield') => {
+const playContent = async (content, entityID = 'plex_shield') => {
   // Turn on the TV.
   let remoteState = await hass.states.get('remote', 'lounge')
   if (remoteState.state === 'off' || remoteState.attributes.current_activity !== 'Watch TV') {
@@ -50,16 +43,36 @@ const playMovie = async (movieName, entityID = 'plex_shield') => {
     console.log('Status: Plex is already running')
   }
 
-  // Play the movie.
-  const libraryName = 'Movies'
-  console.log(`Status: Playing ${movieName}.`)
-  hass.services.call('play_media', 'media_player', {
+  const serviceData = {
     entity_id: `media_player.${entityID}`,
-    media_content_type: `VIDEO`,
-    media_content_id: `{"library_name": "${libraryName}", "video_name": "${movieName}"}`
-  }).catch(error => {
+    media_content_type: content.type
+  }
+  switch (content.type) {
+    case 'VIDEO':
+      console.log(`Status: Playing ${content.videoName} from ${content.libraryName}.`)
+      serviceData.media_content_id = JSON.stringify({
+        "library_name": content.libraryName,
+        "video_name": content.videoName
+      })
+      break;
+    case 'PLAYLIST':
+      console.log(`Status: Playing ${content.playlistName} ${(content.shuffle ? ' on shuffle' : '')}`)
+      serviceData.media_content_id = JSON.stringify({
+        "playlist_name ": content.playlistName,
+        "shuffle": (content.shuffle ? '1' : '0')
+      })
+      break;
+    case 'MUSIC':
+    case 'EPISODE':
+      console.error(`Error: ${content.type} support is not currently implemented.`)
+      break;
+  }
+
+  if (serviceData.media_content_id)
+  hass.services.call('play_media', 'media_player', serviceData).catch(error => {
     console.error(error)
   })
+
 }
 
 // Check we're connected to Hass.
@@ -69,50 +82,33 @@ hass.status().then(response => {
   }
 
   console.log('Status: Connected to Home Assistant API.')
+  console.log('Status: Looking for NFC reader.')
 
-  if (listenForNFC) {
-    console.log('Status: Looking for NFC reader.')
+  const nfc = new NFC();
+  nfc.on('reader', reader => {
+    console.log(`Status: ${reader.reader.name} detected`)
 
-    const nfc = new NFC();
-    nfc.on('reader', reader => {
-      console.log(`Status: ${reader.reader.name} detected`)
-
-      reader.on('card', card => {
-        let movieID = card.uid
-        if (movies.hasOwnProperty(movieID)) {
-          const movieName = movies[movieID]
-          console.log(`Read: ${movieID}. Playing ${movieName}.`)
-          playMovie(movies[movieID])
-        }
-        else {
-          console.error(`Read: ${movieID}. No matching movie.`)
-        }
-      });
-
-      reader.on('error', error => {
-        console.error(`Error: ${reader.reader.name}: ${error.toString()}`)
-      });
+    reader.on('card', card => {
+      let contentID = card.uid
+      if (content.hasOwnProperty(contentID)) {
+        const contentObject = content[contentID]
+        console.log(`Read: ${contentID}. Matching content ${contentObject}.`)
+        playContent(contentObject)
+      }
+      else {
+        console.error(`Read: ${contentID}. No matching content.`)
+      }
     });
 
-    nfc.on('error', error => {
-      console.error(`Error: ${error.toString()}`)
+    reader.on('error', error => {
+      console.error(`Error: ${reader.reader.name}: ${error.toString()}`)
     });
-  } else {
-    if (argAction === 'name') {
-      const lookupID = Object.keys(movies).find(key => movies[key] === argValue)
-      if (lookupID !== undefined) {
-        playMovie(movies[lookupID])
-      } else {
-        console.error(`Error: Unable to find movie with name: ${argValue}`)
-      }
-    } else if (argAction === 'id') {
-      if (movies.hasOwnProperty(argValue)) {
-        playMovie(movies[argValue])
-      } else {
-        console.error(`Error: Unable to find movie with ID: ${argValue}`)
-      }
-    }
-  }
+  });
+
+  nfc.on('error', error => {
+    console.error(`Error: ${error.toString()}`)
+  });
+
 }).catch(error => {
   console.error(error.toString())
 });

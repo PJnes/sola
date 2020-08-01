@@ -1,0 +1,29 @@
+{
+  "exampleMovie": {
+    "type": "VIDEO",
+    "libaryName": "Movies",
+    "videoName": "Cars 3"
+  },
+  "examplePlaylist": {
+    "type": "PLAYLIST",
+    "playlistName": "Duggee",
+    "shuffle": true
+  },
+  "exampleEpisode": {
+    "type": "EPISODE",
+    "libraryName": "TV Shows",
+    "showName": "Hey Duggee",
+    "seasonNumber": 1,
+    "episodeNumber": 1,
+    "shuffle": false
+  },
+  "exampleMusic": {
+    "type": "MUSIC",
+    "libaryName": "Music",
+    "artistName": "Incubus",
+    "albumName": "Light Grenades",
+    "trackName": "Example Track",
+    "trackNumber": 4,
+    "shuffle": true
+  }
+}
